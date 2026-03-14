@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body {
+    margin: 0;
+    background: black;
+    padding-bottom: 20px;
+  }
+  video {
+    width: 100%;
+    height: auto;
+    background: #000;
+  }
+</style>
+</head>
+
+<body>
+
+<video id="vid" playsinline controls></video>
+
+<script>
+  let video = document.getElementById('vid');
+  let mediaStream = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+
+  // Tijd doorgeven aan App Inventor
+  video.addEventListener('timeupdate', () => {
+    if (window.AppInventor && window.AppInventor.setWebViewString) {
+      window.AppInventor.setWebViewString("TIME:" + video.currentTime);
+    }
+  });
+
+  // START/STOP vanuit App Inventor
+  window.startFromAI2 = () => startRecording();
+  window.stopFromAI2 = () => stopRecording();
+
+  async function startRecording() {
+    try {
+      if (!mediaStream) {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      }
+      video.srcObject = mediaStream;
+      video.muted = true;
+      video.play();
+
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        exportVideo(blob);
+      };
+
+      mediaRecorder.start();
+    } catch (err) {
+      console.error("Camera error:", err);
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    if (video.srcObject) {
+      video.pause();
+      video.srcObject = null;
+    }
+  }
+
+  function exportVideo(blob) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result; // data:video/webm;base64,....
+      if (window.AppInventor && window.AppInventor.setWebViewString) {
+        window.AppInventor.setWebViewString("VIDEO:" + base64);
+      }
+    };
+    reader.readAsDataURL(blob);
+  }
+</script>
+
+</body>
+</html>
